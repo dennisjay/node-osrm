@@ -10,7 +10,7 @@
     {
       'target_name': '<(module_name)',
       'include_dirs': [
-          '<!@(pkg-config libosrm --cflags)',
+          '/usr/local/include',
           './src/'
       ],
       'libraries': [

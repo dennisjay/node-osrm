@@ -40,6 +40,7 @@ public:
     static Handle<Value> locate(const Arguments&);
     static Handle<Value> nearest(const Arguments&);
     static Handle<Value> table(const Arguments&);
+    static Handle<Value> oneToMany(const Arguments&);
 
     static Handle<Value> Run(const Arguments&, route_parameters_ptr);
     static void AsyncRun(uv_work_t*);
@@ -67,6 +68,7 @@ void Engine::Initialize(Handle<Object> target) {
     NODE_SET_PROTOTYPE_METHOD(constructor, "locate", locate);
     NODE_SET_PROTOTYPE_METHOD(constructor, "nearest", nearest);
     NODE_SET_PROTOTYPE_METHOD(constructor, "table", table);
+    NODE_SET_PROTOTYPE_METHOD(constructor, "oneToMany", oneToMany);
 
     target->Set(String::NewSymbol("OSRM"), constructor->GetFunction());
 }
@@ -291,6 +293,54 @@ Handle<Value> Engine::table(const Arguments& args)
 
     return Run(args, std::move(params));
 }
+    
+Handle<Value> Engine::oneToMany(const Arguments& args)
+{
+    if (args.Length() < 2) {
+        return ThrowException(Exception::TypeError(
+                                                    String::New("two arguments required")));
+    }
+        
+    Local<Object> obj = args[0]->ToObject();
+    if (obj->IsNull() || obj->IsUndefined()) {
+        return ThrowException(Exception::TypeError(String::New(
+                                                                "first arg must be an object")));
+    }
+        
+    Local<Value> coordinates = obj->Get(String::New("coordinates"));
+    if (!coordinates->IsArray()) {
+        return ThrowException(Exception::TypeError(String::New(
+                                                                "coordinates must be an array of (lat/long) pairs")));
+    }
+        
+    Local<Array> coordinates_array = Local<Array>::Cast(coordinates);
+    if (coordinates_array->Length() < 2) {
+        return ThrowException(Exception::TypeError(String::New(
+                                                                "at least two coordinates must be provided")));
+    }
+        
+    route_parameters_ptr params = make_unique<RouteParameters>();
+    params->service = "oneToMany";
+        
+    // add all coordinates
+    for (uint32_t i = 0; i < coordinates_array->Length(); ++i) {
+        Local<Value> coordinate = coordinates_array->Get(i);
+            
+            if (!coordinate->IsArray()) {
+                return ThrowException(Exception::TypeError(String::New("coordinates must be an array of (lat/long) pairs")));
+            }
+            
+            Local<Array> coordinate_pair = Local<Array>::Cast(coordinate);
+            if (coordinate_pair->Length() != 2) {
+                return ThrowException(Exception::TypeError(String::New("coordinates must be an array of (lat/long) pairs")));
+            }
+            
+            params->coordinates.emplace_back(static_cast<int>(coordinate_pair->Get(0)->NumberValue()*COORDINATE_PRECISION),
+                                             static_cast<int>(coordinate_pair->Get(1)->NumberValue()*COORDINATE_PRECISION));
+        }
+        
+        return Run(args, std::move(params));
+    }
 
 Handle<Value> Engine::nearest(const Arguments& args)
 {
